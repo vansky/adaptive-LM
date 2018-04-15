@@ -92,6 +92,8 @@ parser.add_argument('--nopp', action='store_true',
                     help='suppress perplexity output')
 parser.add_argument('--nocheader', action='store_true',
                     help='suppress complexity header')
+parser.add_argument('--noadapt', action='store_true',
+                    help='suppress adaptation phase during evaluation')
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -338,12 +340,13 @@ def test_evaluate(test_sentences, data_source):
             print(str(sent)+":"+str(curr_loss.data[0]))
         
         ## adaptive phase
-        curr_loss.backward()
+        if not args.noadapt:
+            curr_loss.backward()
 
-        # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-        torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
-        for p in model.parameters():
-            p.data.add_(-lr, p.grad.data)
+            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+            torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
+            for p in model.parameters():
+                p.data.add_(-lr, p.grad.data)
 
         hidden = repackage_hidden(hidden)
         bar.next()
