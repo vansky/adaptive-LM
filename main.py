@@ -56,6 +56,8 @@ parser.add_argument('--log-interval', type=int, default=200, metavar='N',
 ## Data parameters
 parser.add_argument('--save', type=str,  default='model.pt',
                     help='path to save the final model')
+parser.add_argument('--saveadapted', type=str,  default='adaptedmodel.pt',
+                    help='new path to save the final adapted model')
 parser.add_argument('--data', type=str, default='./data/wikitext-2',
                     help='location of the data corpus')
 parser.add_argument('--lm_data', type=str, default='lm_data.bin',
@@ -86,6 +88,10 @@ parser.add_argument('--guessprobs', action='store_true',
                     help='display guess probs along with guesses')
 parser.add_argument('--complexn', type=int, default=0,
                     help='compute complexity only over top n guesses (0 = all guesses)')
+parser.add_argument('--nopp', action='store_true',
+                    help='suppress perplexity output')
+parser.add_argument('--nocheader', action='store_true',
+                    help='suppress complexity header')
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -299,7 +305,8 @@ def test_evaluate(test_sentences, data_source):
         sys.stderr.write('Using beamsize: '+str(args.complexn)+'\n')
 
     if args.words:
-        print('word sentid sentpos wlen surp entropy entred', end='')
+        if not args.nocheader:
+            print('word sentid sentpos wlen surp entropy entred', end='')
         if args.guess:
             for i in range(args.guessn):
                 print(' guess'+str(i), end='')
@@ -317,19 +324,27 @@ def test_evaluate(test_sentences, data_source):
             hidden = model.module.init_hidden(1) # number of parallel sentences being processed
         else:
             hidden = model.init_hidden(1) # number of parallel sentences being processed
-        data, targets = test_get_batch(sent_ids, evaluation=True)
+        data, targets = test_get_batch(sent_ids, evaluation=False)
         data=data.unsqueeze(1) # only needed if there is just a single sentence being processed
         output, hidden = model(data, hidden)
         output_flat = output.view(-1, ntokens)
-        curr_loss = criterion(output_flat, targets).data
-        #curr_loss = len(data) * criterion(output_flat, targets).data # needed if there is more than a single sentence being processed
-        total_loss += curr_loss
+        curr_loss = criterion(output_flat, targets)
+        total_loss += curr_loss.data
         if args.words:
             # output word-level complexity metrics
             get_complexity(output_flat,targets,i)
         else:
             # output sentence-level loss
-            print(str(sent)+":"+str(curr_loss[0]))
+            print(str(sent)+":"+str(curr_loss.data[0]))
+        
+        ## adaptive phase
+        curr_loss.backward()
+
+        # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+        torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
+        for p in model.parameters():
+            p.data.add_(-lr, p.grad.data)
+
         hidden = repackage_hidden(hidden)
         bar.next()
     bar.finish()
@@ -427,7 +442,10 @@ else:
 
     # Run on test data.
     test_loss = test_evaluate(test_sents, test_data)
-    print('=' * 89)
-    print('| End of testing | test loss {:5.2f} | test ppl {:8.2f}'.format(
-        test_loss, math.exp(test_loss)))
-    print('=' * 89)
+    with open(args.saveadapted, 'wb') as f:
+        torch.save(model, f)
+    if not args.nopp:
+        print('=' * 89)
+        print('| End of testing | test loss {:5.2f} | test ppl {:8.2f}'.format(
+            test_loss, math.exp(test_loss)))
+        print('=' * 89)
