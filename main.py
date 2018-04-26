@@ -309,12 +309,12 @@ def test_evaluate(test_sentences, data_source):
     if args.words:
         if not args.nocheader:
             print('word sentid sentpos wlen surp entropy entred', end='')
-        if args.guess:
-            for i in range(args.guessn):
-                print(' guess'+str(i), end='')
-                if args.guessscores:
-                    print(' gscore'+str(i), end='')
-        sys.stdout.write('\n')
+            if args.guess:
+                for i in range(args.guessn):
+                    print(' guess'+str(i), end='')
+                    if args.guessscores:
+                        print(' gscore'+str(i), end='')
+            sys.stdout.write('\n')
     bar = Bar('Processing', max=len(data_source))
     for i in range(len(data_source)):
         sent_ids = data_source[i]
