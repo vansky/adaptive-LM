@@ -445,8 +445,9 @@ else:
 
     # Run on test data.
     test_loss = test_evaluate(test_sents, test_data)
-    with open(args.saveadapted, 'wb') as f:
-        torch.save(model, f)
+    if not args.noadapt:
+        with open(args.saveadapted, 'wb') as f:
+            torch.save(model, f)
     if not args.nopp:
         print('=' * 89)
         print('| End of testing | test loss {:5.2f} | test ppl {:8.2f}'.format(
